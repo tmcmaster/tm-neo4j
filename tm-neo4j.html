@@ -1,9 +1,3 @@
-<!-- <link rel="import" href="../../bower_components/polymer/polymer.html"> -->
-<!-- <link rel="import" href="../../bower_components/paper-elements/paper-elements.html"> -->
-
-<!-- <link rel="import" href="../../bower_components/paper-input/paper-input.html">
-<link rel="import" href="../../bower_components/paper-button/paper-button.html"> -->
-
 <script src="../../bower_components/neo4j-driver/lib/browser/neo4j-web.min.js"></script>
 
 <!--
@@ -20,9 +14,6 @@
         display: block;
       }
     </style>
-    <h2>Testing Neo4j connection</h2>
-    <paper-input label="Password" value="{{password}}" type="password"></paper-input>
-    <paper-button raised on-tap="_testConnection">Test Connection to Neo4j</paper-button>
   </template>
 
   <script>
@@ -30,38 +21,147 @@
       Polymer({
         is: 'tm-neo4j',
         properties: {
+          hostname: {
+            type: String,
+            value: 'localhost',
+          },
+          username: {
+            type: String,
+            value: 'neo4j',
+          },
           password: {
             type: String,
-            value: '',
+            value: 'AllIsGood',
           },
+          data: {
+            type: Object,
+            notify: true,
+            value: {
+              nodes:[],
+              edges:[]
+            }
+          },
+          cypher: {
+            type: String,
+            notify: true,
+            value: "MATCH (n)-[e]->(m) return n,e,m"
+          },
+          auto: {
+            type: Boolean,
+            notify: true,
+            value: true
+          }
         },
-        _testConnection: function() {
-          console.log('Testing Neo4j Connection');
-          var driver = Neo4j.driver("bolt://localhost", Neo4j.auth.basic("neo4j", this.password));
-          driver.onCompleted = function() {
-            console.log('Connected to Neo4j database.');
-          };
-          driver.onError = function(error) {
-            console.log('Driver instantiation failed', error);
-          };
-
-          const session = driver.session();
-          session.run( "MATCH (n) return n" )
-          	.then(( result ) => {
-          		console.log('RESULT: ', result );
-              console.log('Closing connection to Neo4j');
-              driver.close();
-          	})
-          	.catch( ( err ) => {
+        observers: [
+          '_connectionDetailsChanged(username,password,hostname)',
+          '_cypherChanged(cypher)'
+        ],
+        _cypherChanged: function(cypher) {
+          console.log('CYPHER changed', this.cypher);
+          this._refreshData(false);
+        },
+        refreshData: function() {
+          this._refreshData(true);
+        },
+        _refreshData: function(manualRefresh) {
+          if (!manualRefresh && (!this.auto || this.driver === undefined || this.cypher === undefined)) {
+            console.log('NOT going to refresh data.', this.driver, this.cypher);
+            return;
+          }
+          console.log('About to refresh data');
+          const session = this.driver.session();
+          var self = this;
+          session.run( this.cypher )
+            .then(( result ) => {
+              const nodesAndEdges = convertRecordsToNodesAndEdges(result.records);
+              self.data = nodesAndEdges;
+              self.driver.close();
+            })
+            .catch( ( err ) => {
               console.log('ERROR: ', err );
               console.log('Closing connection to Neo4j');
-              driver.close();
+              self.driver.close();
             });
+        },
+        _connectionDetailsChanged: function(username,password,hostname) {
+          console.log('CONNECTION has changed: ', username, password, hostname);
+          if (username !== undefined && password !== undefined && hostname !== undefined && hostname !== '') {
+            if (this.driver !== undefined) {
+              this.driver.close();
+            }
+            console.log('Creating new driver');
+            this.driver = Neo4j.driver("bolt://localhost", Neo4j.auth.basic(this.username, this.password));
+            const self = this;
+            this.driver.onCompleted = function() {
+              console.log('Connected to Neo4j database.');
+            };
+            this.driver.onError = function(error) {
+              console.log('Driver instantiation failed', error);
+              self.driver = undefined;
+            };
+            this._refreshData(false);
+          }
         },
         ready: function() {
           console.log('Created tm-neo4j web component.');
         }
       });
+
+      function identityToID(identity) {
+          return identity.low;
+      }
+
+      function getNode(field) {
+          const id = identityToID(field.identity);
+          const node = {
+            id: id
+          }
+          Object.keys(field.properties).forEach(function(key) {
+            if (field.properties[key] instanceof Object && 'high' in field.properties[key] && 'low' in field.properties[key]) {
+              node[key] = identityToID(field.properties[key]);
+            } else {
+              node[key] = field.properties[key];
+            }
+          });
+          return node;
+      }
+
+      function getEdge(field) {
+        const edge = getNode(field);
+        edge.start = identityToID(field.start);
+        edge.end = identityToID(field.end);
+        return edge;
+      }
+
+      function convertRecordsToNodesAndEdges(records) {
+        const nodes = [];
+        const edges = [];
+        const nodeIndex = {};
+
+        records.forEach(function(record) {
+          const fields = record._fields;
+          fields.forEach(function(field) {
+            const properties = field.properties;
+
+            if ('end' in field) {
+              const edge = getEdge(field);
+              edges.push(edge);
+            } else {
+              const node = getNode(field);
+              if (!(node.id in nodeIndex)) {
+                nodes.push(node);
+                nodeIndex[node.id] = node;
+              }
+            }
+          });
+        });
+
+        return {
+          nodes: nodes,
+          edges: edges
+        };
+      }
+
     })(Polymer, neo4j.v1)
   </script>
 </dom-module>
