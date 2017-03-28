@@ -1,4 +1,3 @@
-<script src="../../bower_components/neo4j-driver/lib/browser/neo4j-web.min.js"></script>
 
 <!--
 `tm-neo4j`
@@ -6,6 +5,7 @@
 
 @demo demo/index.html
 -->
+<link rel="import" href="elements.html">
 
 <dom-module id="tm-neo4j">
   <template>
@@ -89,8 +89,9 @@
             if (this.driver !== undefined) {
               this.driver.close();
             }
-            console.log('Creating new driver');
-            this.driver = Neo4j.driver("bolt://localhost", Neo4j.auth.basic(this.username, this.password));
+            const connectionURL = "bolt://" + this.hostname;
+            console.log('Creating new driver: ' + connectionURL);
+            this.driver = Neo4j.driver(connectionURL, Neo4j.auth.basic(this.username, this.password));
             const self = this;
             this.driver.onCompleted = function() {
               console.log('Connected to Neo4j database.');
@@ -104,6 +105,7 @@
         },
         ready: function() {
           console.log('Created tm-neo4j web component.');
+          this.refreshData(true);
         }
       });
 
