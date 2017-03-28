@@ -2,7 +2,10 @@
   "name": "tm-neo4j",
   "main": "tm-neo4j.html",
   "dependencies": {
-    "polymer": "Polymer/polymer#^1.4.0"
+    "polymer": "Polymer/polymer#^1.4.0",
+    "neo4j-driver": "^1.2.0",
+    "paper-elements": "^1.0.7",
+    "iron-elements": "^1.0.10"
   },
   "devDependencies": {
     "iron-component-page": "PolymerElements/iron-component-page#^1.0.0",

@@ -1,10 +1,16 @@
-<link rel="import" href="../polymer/polymer.html">
+<!-- <link rel="import" href="../../bower_components/polymer/polymer.html"> -->
+<!-- <link rel="import" href="../../bower_components/paper-elements/paper-elements.html"> -->
+
+<!-- <link rel="import" href="../../bower_components/paper-input/paper-input.html">
+<link rel="import" href="../../bower_components/paper-button/paper-button.html"> -->
+
+<script src="../../bower_components/neo4j-driver/lib/browser/neo4j-web.min.js"></script>
 
 <!--
 `tm-neo4j`
 
 
-@demo demo/index.html 
+@demo demo/index.html
 -->
 
 <dom-module id="tm-neo4j">
@@ -14,21 +20,48 @@
         display: block;
       }
     </style>
-    <h2>Hello [[prop1]]</h2>
+    <h2>Testing Neo4j connection</h2>
+    <paper-input label="Password" value="{{password}}" type="password"></paper-input>
+    <paper-button raised on-tap="_testConnection">Test Connection to Neo4j</paper-button>
   </template>
 
   <script>
-    Polymer({
-
-      is: 'tm-neo4j',
-
-      properties: {
-        prop1: {
-          type: String,
-          value: 'tm-neo4j',
+    (function(Polymer, Neo4j) {
+      Polymer({
+        is: 'tm-neo4j',
+        properties: {
+          password: {
+            type: String,
+            value: '',
+          },
         },
-      },
+        _testConnection: function() {
+          console.log('Testing Neo4j Connection');
+          var driver = Neo4j.driver("bolt://localhost", Neo4j.auth.basic("neo4j", this.password));
+          driver.onCompleted = function() {
+            console.log('Connected to Neo4j database.');
+          };
+          driver.onError = function(error) {
+            console.log('Driver instantiation failed', error);
+          };
 
-    });
+          const session = driver.session();
+          session.run( "MATCH (n) return n" )
+          	.then(( result ) => {
+          		console.log('RESULT: ', result );
+              console.log('Closing connection to Neo4j');
+              driver.close();
+          	})
+          	.catch( ( err ) => {
+              console.log('ERROR: ', err );
+              console.log('Closing connection to Neo4j');
+              driver.close();
+            });
+        },
+        ready: function() {
+          console.log('Created tm-neo4j web component.');
+        }
+      });
+    })(Polymer, neo4j.v1)
   </script>
 </dom-module>
